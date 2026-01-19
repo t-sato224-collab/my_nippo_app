@@ -1,44 +1,6 @@
-import streamlit as st
-from supabase import create_client
-import pandas as pd
+# --- (前半のインポートや認証部分はそのまま) ---
 
-# --- 1. 初期設定 ---
-st.set_page_config(page_title="NIPPO Cloud Pro", layout="wide")
-
-url = st.secrets["supabase"]["url"]
-key = st.secrets["supabase"]["key"]
-supabase = create_client(url, key)
-
-# セッション状態（ログイン管理）の初期化
-if "user" not in st.session_state:
-    st.session_state.user = None
-
-# --- 2. 認証機能（サインイン・ログイン） ---
-def auth_screen():
-    st.title("🔐 NIPPO Cloud ログイン")
-    choice = st.radio("アクションを選んでください", ["ログイン", "新規会員登録"])
-    
-    email = st.text_input("メールアドレス")
-    password = st.text_input("パスワード", type="password")
-    
-    if choice == "新規会員登録":
-        if st.button("アカウント作成"):
-            try:
-                res = supabase.auth.sign_up({"email": email, "password": password})
-                st.success("登録完了！ログインしてください。")
-            except Exception as e:
-                st.error(f"登録エラー: {e}")
-                
-    else: # ログイン
-        if st.button("ログイン"):
-            try:
-                res = supabase.auth.sign_in_with_password({"email": email, "password": password})
-                st.session_state.user = res.user
-                st.rerun()
-            except Exception as e:
-                st.error("ログインに失敗しました。メールアドレスかパスワードが違います。")
-
-# --- 3. メインアプリ画面（ログイン後） ---
+# --- メインアプリ画面（修正・削除機能付き） ---
 def main_app():
     user = st.session_state.user
     st.sidebar.write(f"ログイン中: {user.email}")
@@ -47,42 +9,69 @@ def main_app():
         st.session_state.user = None
         st.rerun()
 
-    st.title("📑 職務日報システム")
+    st.title("📑 職務日報システム Pro")
     
-    tab1, tab2 = st.tabs(["✨ 新規登録", "🔍 自分の履歴"])
+    tab1, tab2 = st.tabs(["✨ 新規登録", "🔍 履歴の確認・編集"])
 
     # --- 新規登録 ---
     with tab1:
-        with st.form("nippo_form"):
+        with st.form("nippo_form", clear_on_submit=True):
             date = st.date_input("日付")
             loc = st.text_input("場所")
             memo = st.text_area("業務内容")
             if st.form_submit_button("保存する"):
-                data = {
-                    "date": str(date),
-                    "location": loc,
-                    "content": memo,
-                    "user_id": user.id  # ログイン中のユーザーIDを保存！
-                }
+                data = {"date": str(date), "location": loc, "content": memo, "user_id": user.id}
                 supabase.table("nippo").insert(data).execute()
-                st.success("自分のデータとして保存しました。")
+                st.success("保存しました！")
+                st.rerun()
 
-    # --- 履歴表示（自分のみ） ---
+    # --- 履歴表示・編集・削除 ---
     with tab2:
-        st.subheader("あなたの過去の日報")
-        # ログインしている自分の user_id と一致するものだけを取得
+        st.subheader("データ管理")
         res = supabase.table("nippo").select("*").eq("user_id", user.id).order("date", desc=True).execute()
         
         if res.data:
             df = pd.DataFrame(res.data)
-            df = df[["date", "location", "content"]]
-            df.columns = ["日付", "場所", "業務内容"]
-            st.dataframe(df, use_container_width=True)
-        else:
-            st.write("まだ履歴がありません。")
+            # 表示用の表
+            display_df = df[["date", "location", "content"]].copy()
+            display_df.columns = ["日付", "場所", "業務内容"]
+            st.dataframe(display_df, use_container_width=True)
 
-# --- 4. 画面制御 ---
-if st.session_state.user is None:
-    auth_screen()
-else:
-    main_app()
+            st.divider()
+            
+            # --- 編集・削除エリア ---
+            st.write("🔧 **選択したデータを修正または削除する**")
+            # どのデータを操作するか、日付と場所で選択させる
+            df['selection_label'] = df['date'] + " - " + df['location']
+            target_label = st.selectbox("操作するデータを選択してください", df['selection_label'])
+            
+            # 選択されたデータの詳細を取得
+            target_data = df[df['selection_label'] == target_label].iloc[0]
+            target_id = target_data['id']
+
+            edit_col1, edit_col2 = st.columns(2)
+            
+            with edit_col1:
+                # 修正フォーム
+                with st.expander("📝 このデータを修正する"):
+                    edit_date = st.date_input("修正後の日付", value=datetime.strptime(target_data['date'], '%Y-%m-%d'))
+                    edit_loc = st.text_input("修正後の場所", value=target_data['location'])
+                    edit_memo = st.text_area("修正後の業務内容", value=target_data['content'])
+                    if st.button("更新を保存する"):
+                        update_data = {"date": str(edit_date), "location": edit_loc, "content": edit_memo}
+                        supabase.table("nippo").update(update_data).eq("id", target_id).execute()
+                        st.success("更新完了！")
+                        st.rerun()
+
+            with edit_col2:
+                # 削除フォーム
+                with st.expander("🗑️ このデータを削除する"):
+                    st.warning("この操作は取り消せません。")
+                    if st.button("本当に削除する"):
+                        supabase.table("nippo").delete().eq("id", target_id).execute()
+                        st.success("削除しました。")
+                        st.rerun()
+        else:
+            st.write("データがありません。")
+
+# --- (後半の画面制御部分はそのまま) ---
