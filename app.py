@@ -5,7 +5,22 @@ from datetime import datetime, timedelta
 
 # --- 1. ページ設定 ---
 st.set_page_config(page_title="NIPPO Pro - 期間抽出対応", page_icon="📑", layout="wide")
+# --- 1. ページ設定 ---
+st.set_page_config(page_title="NIPPO Pro", page_icon="📑", layout="wide")
 
+# --- 追加：アプリの外観をプロ仕様にするCSS ---
+st.markdown("""
+    <style>
+    /* 右上のメニューボタンを隠す */
+    #MainMenu {visibility: hidden;}
+    /* 下のフッター（Made with Streamlit）を隠す */
+    footer {visibility: hidden;}
+    /* ヘッダーの余計な線を消す */
+    header {visibility: hidden;}
+    /* 入力フォームの角を丸くする */
+    .stTextInput>div>div>input {border-radius: 10px;}
+    </style>
+    """, unsafe_allow_html=True)
 # --- 2. 接続 ---
 url = st.secrets["supabase"]["url"]
 key = st.secrets["supabase"]["key"]
