@@ -69,18 +69,16 @@ def main_app():
             
             st.info("💡 行をクリックして選択すると、下に編集画面が出ます。")
             
-            # --- 選択機能付きデータフレーム ---
-            # ここでエラーが出る場合は、requirements.txtでstreamlitのバージョンが1.35.0以上になっているか確認してください
+            # --- ここが修正ポイント：single_row ではなく single-row ---
             event = st.dataframe(
                 df[["date", "person", "location", "content"]].rename(columns={"date":"日付","person":"担当者","location":"場所","content":"内容"}),
                 use_container_width=True,
                 on_select="rerun",
-                selection_mode="single_row",
+                selection_mode="single-row",  # ここをハイフンに修正しました
                 hide_index=True
             )
 
             # 選択された行の処理
-            # event.selection.rows が存在するかチェック
             if hasattr(event, 'selection') and len(event.selection.rows) > 0:
                 row_idx = event.selection.rows[0]
                 selected = df.iloc[row_idx]
